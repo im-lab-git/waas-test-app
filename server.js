@@ -1,13 +1,29 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
+const https = require("https");
+const http = require("http");
+const fs = require("fs");
 
 const app = express();
 
+// Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
 
-app.get("/", (req, res) => {
+// Fake user data for API route
+const fakeUserData = {
+	firstName: "John",
+	lastName: "Doe",
+	email: "john.doe@example.com",
+	address: "123 Elm Street",
+	creditCard: "5425233430109903",
+	expiryDate: "04/2026",
+	cvv: "235",
+};
+
+// Serve the HTML form
+app.get("/checkout", (req, res) => {
 	res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -18,14 +34,12 @@ app.get("/", (req, res) => {
         <style>
             body {
                 font-family: 'Arial', sans-serif;
-                background: rgb(147,228,202);
                 background: radial-gradient(circle, rgba(147,228,202,1) 0%, rgba(111,166,232,1) 100%);
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 min-height: 100vh;
                 margin: 0;
-                padding: 0;
             }
             .form-container {
                 background: white;
@@ -33,9 +47,8 @@ app.get("/", (req, res) => {
                 border-radius: 10px;
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
                 max-width: 400px;
-                width: 90%; /* Ensures responsiveness on smaller screens */
-                box-sizing: border-box; /* Includes padding in the width */
-                margin: 20px auto; /* Centers the form */
+                width: 90%;
+                margin: 20px auto;
             }
             .form-container h1 {
                 font-size: 24px;
@@ -48,17 +61,16 @@ app.get("/", (req, res) => {
                 color: #555;
                 display: block;
                 margin-top: 10px;
-                margin-bottom: 5px; /* Adds space below labels */
+                margin-bottom: 5px;
             }
             .form-container input {
                 width: 100%;
                 padding: 10px;
-                margin-bottom: 15px; /* Adds space below input fields */
+                margin-bottom: 15px;
                 border: 1px solid #ccc;
                 border-radius: 5px;
                 font-size: 14px;
                 transition: border-color 0.3s;
-                box-sizing: border-box; /* Ensures proper width with padding */
             }
             .form-container input:focus {
                 border-color: #fda085;
@@ -78,20 +90,11 @@ app.get("/", (req, res) => {
             .form-container button:hover {
                 background: linear-gradient(120deg, #fda085, #f6d365);
             }
-            @media (max-width: 500px) {
-                .form-container {
-                    padding: 20px;
-                }
-                .form-container h1 {
-                    font-size: 20px;
-                }
-            }
         </style>
     </head>
     <body>
         <div class="form-container">
-            <h1>Checkout</h1>
-            <h3>Checkout - Just one step away from placing your order</h3>
+            <h1>Pseudo Checkout</h1>
             <form action="/submit" method="POST">
                 <label for="firstName">First Name:</label>
                 <input type="text" id="firstName" name="firstName" value="John" required>
@@ -122,16 +125,15 @@ app.get("/", (req, res) => {
   `);
 });
 
+// Handle form submission
 app.post("/submit", (req, res) => {
 	const { firstName, lastName, email, address, creditCard, expiryDate, cvv } = req.body;
 
-	// Log the submitted data
 	console.log("Form submitted:", { firstName, lastName, email, address, creditCard, expiryDate, cvv });
 
-	// Respond with a success page including the JSON data
 	res.send(`
     <h1 style="text-align: center; color: #333;">Thank You, ${firstName}!</h1>
-    <p style="text-align: center; color: #666;">Your order has been submitted successfully.</p>
+    <p style="text-align: center; color: #666;">Your form has been submitted successfully.</p>
     <h2 style="text-align: center; color: #555;">Submitted Data</h2>
     <pre style="background: #f4f4f4; padding: 15px; border-radius: 5px; max-width: 600px; margin: 20px auto; color: #333;">${JSON.stringify(
 			{ firstName, lastName, email, address, creditCard, expiryDate, cvv },
@@ -139,12 +141,40 @@ app.post("/submit", (req, res) => {
 			2
 		)}</pre>
     <div style="text-align: center; margin-top: 20px;">
-      <a href="/" style="text-decoration: none; color: #fda085; font-weight: bold;">Go back to the form</a>
+      <a href="/checkout" style="text-decoration: none; color: #fda085; font-weight: bold;">Go back to the form</a>
     </div>
   `);
 });
 
-const PORT = 80;
-app.listen(PORT, () => {
-	console.log(`Server is running on http://localhost:${PORT}`);
+// API route to return user data
+app.get("/user", (req, res) => {
+	res.json(fakeUserData);
 });
+
+// Root route
+app.get("/", (req, res) => {
+	res.send("Welcome to the Checkout App!");
+});
+
+// HTTPS Options
+const sslOptions = {
+	key: fs.readFileSync("./tls.key"), // Replace with your SSL key
+	cert: fs.readFileSync("./tls.crt"), // Replace with your SSL certificate
+};
+
+// HTTPS Server
+const HTTPS_PORT = 445;
+https.createServer(sslOptions, app).listen(HTTPS_PORT, () => {
+	console.log(`HTTPS server is running at https://localhost:${HTTPS_PORT}`);
+});
+
+// HTTP Server for Redirect
+const HTTP_PORT = 80;
+http
+	.createServer((req, res) => {
+		res.writeHead(301, { Location: `https://${req.headers.host}${req.url}` });
+		res.end();
+	})
+	.listen(HTTP_PORT, () => {
+		console.log(`HTTP server is redirecting to HTTPS`);
+	});
